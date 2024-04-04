@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/dop251/goja v0.0.0-20231027120936-b396bb4c349d
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.k6.io/k6 v0.47.0
 	gopkg.in/guregu/null.v3 v3.5.0
 )
