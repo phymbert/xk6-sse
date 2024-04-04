@@ -1,7 +1,8 @@
 // Package sse implements a k6/x/sse javascript module extension for k6.
 // It provides basic functionality to handle Server-Sent Event over http
 // that *blocks* the event loop while the http connection is opened.
-// [SSE API design document]: https://github.com/phymbert/xk6-sse/blob/master/docs/design/021-sse-api.md#proposed-solution
+// [SSE API design document]:
+// https://github.com/phymbert/xk6-sse/blob/master/docs/design/021-sse-api.md#proposed-solution
 package sse
 
 import (
@@ -168,7 +169,6 @@ func (mi *sse) Open(url string, args ...goja.Value) (*HTTPResponse, error) {
 func (mi *sse) open(ctx context.Context, state *lib.State,
 	rt *goja.Runtime, url string, args *sseOpenArgs,
 ) (*Client, func(), error) {
-
 	sseClient := Client{
 		ctx:            ctx,
 		rt:             rt,
@@ -352,7 +352,6 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 	var buf bytes.Buffer
 
 	for {
-
 		line, err := reader.ReadBytes('\n')
 		if err != nil {
 			if errors.Is(err, io.EOF) {

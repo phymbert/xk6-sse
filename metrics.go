@@ -2,10 +2,12 @@ package sse
 
 import (
 	"errors"
+
 	"go.k6.io/k6/js/modules"
 	"go.k6.io/k6/metrics"
 )
 
+// MetricEventName is the sse event metric of the module
 const MetricEventName = "sse_event"
 
 type sseMetrics struct {
