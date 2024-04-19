@@ -210,9 +210,12 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 		return &sseClient, nil, err
 	}
 
-	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Accept", "text/event-stream")
-	req.Header.Set("Connection", "keep-alive")
+	for headerName, headerValues := range args.headers {
+		for _, headerValue := range headerValues {
+			req.Header.Set(headerName, headerValue)
+		}
+	}
 
 	// Wrap the request to retrieve the server IP tag
 	trace := &httptrace.ClientTrace{

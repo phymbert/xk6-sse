@@ -184,7 +184,7 @@ func TestOpen(t *testing.T) {
 		sr := test.tb.Replacer.Replace
 		_, err := test.VU.Runtime().RunString(sr(`
 		var events = [];
-		var res = sse.open("HTTPBIN_IP_URL/sse", {method: 'POST', body: '{"ping": true}'}, function(client){
+		var res = sse.open("HTTPBIN_IP_URL/sse", {method: 'POST', body: '{"ping": true}', headers: {"content-type": "application/json", "Authorization": "Bearer XXXX"}}, function(client){
 			client.on("event", function(event) {
 				events.push(event);
 			});
@@ -293,7 +293,7 @@ func TestUserAgent(t *testing.T) {
 		if (userAgent == undefined) {
 			throw new Error("user agent is not echoed back by test server");
 		}
-		if (userAgent != "Go-http-client/1.1") {
+		if (userAgent != "TestUserAgent") {
 			throw new Error("incorrect user agent: " + userAgent);
 		}
 		`))
@@ -392,6 +392,9 @@ func sseHandler(t testing.TB, generateErrors bool) http.Handler {
 			_, _ = w.Write([]byte("junk\n"))
 		} else {
 			if req.Method == http.MethodPost {
+				assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+				assert.Equal(t, "Bearer XXXX", req.Header.Get("Authorization"))
+
 				body, err := io.ReadAll(req.Body)
 				require.NoError(t, err)
 				if `{"ping": true}` != string(body) {
