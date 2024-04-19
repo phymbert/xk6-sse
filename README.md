@@ -1,10 +1,6 @@
 # xk6-sse
 A [k6](https://go.k6.io/k6) extension for [Server-Sent Events (SSE)](https://en.wikipedia.org/wiki/Server-sent_events) using the [xk6](https://github.com/grafana/xk6) system.
 
-
-| /!\ This is a proof of concept, isn't supported by the k6 team, and may break in the future. USE AT YOUR OWN RISK! |
-|--------------------------------------------------------------------------------------------------------------------|
-
 See the [K6 SSE Extension design](docs/design/021-sse-api.md).
 
 ## k6 version
@@ -36,30 +32,42 @@ xk6 build master \
 ## Example
 
 ```javascript
-import sse from "k6/x/sse";
-import {check} from "k6";
+import sse from "k6/x/sse"
+import {check} from "k6"
 
 export default function () {
-    var url = "https://echo.websocket.org/.sse";
-    var params = {"tags": {"my_tag": "hello"}};
+    const url = "https://echo.websocket.org/.sse"
+    const params = {
+        method: 'GET',
+        headers: {
+            "Authorization": "Bearer XXXX"
+        },
+        tags: {"my_k6s_tag": "hello sse"}
+    }
 
-    var response = sse.open(url, params, function (client) {
+    const response = sse.open(url, params, function (client) {
         client.on('open', function open() {
-            console.log('connected');
-        });
+            console.log('connected')
+        })
 
         client.on('event', function (event) {
-            console.log(`event id=${event.id}, name=${event.name}, data=${event.data}`);
-            if (parseInt(event.id) === 10) {
-                client.close();
+            console.log(`event id=${event.id}, name=${event.name}, data=${event.data}`)
+            if (parseInt(event.id) === 4) {
+                client.close()
             }
-        });
+        })
 
         client.on('error', function (e) {
-            console.log('An unexpected error occurred: ', e.error());
-        });
-    });
+            console.log('An unexpected error occurred: ', e.error())
+        })
+    })
 
-    check(response, {"status is 200": (r) => r && r.status === 200});
-};
+    check(response, {"status is 200": (r) => r && r.status === 200})
+}
 ```
+
+### License
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
