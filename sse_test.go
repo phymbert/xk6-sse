@@ -78,10 +78,7 @@ func newTestState(tb testing.TB) testState {
 	registry := metrics.NewRegistry()
 	samples := make(chan metrics.SampleContainer, 1000)
 
-	root, err := lib.NewGroup("", nil)
-	require.NoError(tb, err)
 	state := &lib.State{
-		Group:  root,
 		Dialer: httpMultiBin.Dialer,
 		Options: lib.Options{
 			SystemTags: metrics.NewSystemTagSet(
