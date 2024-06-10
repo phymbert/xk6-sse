@@ -22,7 +22,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dop251/goja"
+	"github.com/grafana/sobek"
 	"go.k6.io/k6/js/common"
 	"go.k6.io/k6/js/modules"
 	httpModule "go.k6.io/k6/js/modules/k6/http"
@@ -34,7 +34,7 @@ type (
 	// sse represents a module instance of the sse module.
 	sse struct {
 		vu      modules.VU
-		obj     *goja.Object
+		obj     *sobek.Object
 		metrics *sseMetrics
 	}
 )
@@ -44,11 +44,11 @@ var ErrSSEInInitContext = common.NewInitContextError("using sse in the init cont
 
 // Client is the representation of the sse returned to the js.
 type Client struct {
-	rt            *goja.Runtime
+	rt            *sobek.Runtime
 	ctx           context.Context
 	url           string
 	resp          *http.Response
-	eventHandlers map[string][]goja.Callable
+	eventHandlers map[string][]sobek.Callable
 	done          chan struct{}
 	shutdownOnce  sync.Once
 
@@ -75,7 +75,7 @@ type Event struct {
 }
 
 type sseOpenArgs struct {
-	setupFn     goja.Callable
+	setupFn     sobek.Callable
 	headers     http.Header
 	method      string
 	body        string
@@ -89,7 +89,7 @@ func (mi *sse) Exports() modules.Exports {
 }
 
 // Open establishes a http client connection based on the parameters provided.
-func (mi *sse) Open(url string, args ...goja.Value) (*HTTPResponse, error) {
+func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 	ctx := mi.vu.Context()
 	rt := mi.vu.Runtime()
 	state := mi.vu.State()
@@ -116,7 +116,7 @@ func (mi *sse) Open(url string, args ...goja.Value) (*HTTPResponse, error) {
 	}
 
 	// Run the user-provided set up function
-	if _, err := parsedArgs.setupFn(goja.Undefined(), rt.ToValue(&client)); err != nil {
+	if _, err := parsedArgs.setupFn(sobek.Undefined(), rt.ToValue(&client)); err != nil {
 		_ = client.closeResponseBody()
 		return nil, err
 	}
@@ -167,13 +167,13 @@ func (mi *sse) Open(url string, args ...goja.Value) (*HTTPResponse, error) {
 }
 
 func (mi *sse) open(ctx context.Context, state *lib.State,
-	rt *goja.Runtime, url string, args *sseOpenArgs,
+	rt *sobek.Runtime, url string, args *sseOpenArgs,
 ) (*Client, func(), error) {
 	sseClient := Client{
 		ctx:            ctx,
 		rt:             rt,
 		url:            url,
-		eventHandlers:  make(map[string][]goja.Callable),
+		eventHandlers:  make(map[string][]sobek.Callable),
 		done:           make(chan struct{}),
 		samplesOutput:  state.Samples,
 		tagsAndMeta:    args.tagsAndMeta,
@@ -250,8 +250,8 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 }
 
 // On is used to configure what the client should do on each event.
-func (c *Client) On(event string, handler goja.Value) {
-	if handler, ok := goja.AssertFunction(handler); ok {
+func (c *Client) On(event string, handler sobek.Value) {
+	if handler, ok := sobek.AssertFunction(handler); ok {
 		c.eventHandlers[event] = append(c.eventHandlers[event], handler)
 	}
 }
@@ -261,10 +261,10 @@ func (c *Client) Close() error {
 	return c.closeResponseBody()
 }
 
-func (c *Client) handleEvent(event string, args ...goja.Value) {
+func (c *Client) handleEvent(event string, args ...sobek.Value) {
 	if handlers, ok := c.eventHandlers[event]; ok {
 		for _, handler := range handlers {
-			if _, err := handler(goja.Undefined(), args...); err != nil {
+			if _, err := handler(sobek.Undefined(), args...); err != nil {
 				common.Throw(c.rt, err)
 			}
 		}
@@ -445,21 +445,21 @@ func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
 	return &sseResponse, nil
 }
 
-func parseConnectArgs(state *lib.State, rt *goja.Runtime, args ...goja.Value) (*sseOpenArgs, error) {
+func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) (*sseOpenArgs, error) {
 	// The params argument is optional
-	var callableV, paramsV goja.Value
+	var callableV, paramsV sobek.Value
 	switch len(args) {
 	case 2:
 		paramsV = args[0]
 		callableV = args[1]
 	case 1:
-		paramsV = goja.Undefined()
+		paramsV = sobek.Undefined()
 		callableV = args[0]
 	default:
 		return nil, errors.New("invalid number of arguments to sse.open")
 	}
 	// Get the callable (required)
-	setupFn, isFunc := goja.AssertFunction(callableV)
+	setupFn, isFunc := sobek.AssertFunction(callableV)
 	if !isFunc {
 		return nil, errors.New("last argument to sse.open must be a function")
 	}
@@ -474,7 +474,7 @@ func parseConnectArgs(state *lib.State, rt *goja.Runtime, args ...goja.Value) (*
 		tagsAndMeta: &tagsAndMeta,
 	}
 
-	if goja.IsUndefined(paramsV) || goja.IsNull(paramsV) {
+	if sobek.IsUndefined(paramsV) || sobek.IsNull(paramsV) {
 		return parsedArgs, nil
 	}
 
@@ -484,7 +484,7 @@ func parseConnectArgs(state *lib.State, rt *goja.Runtime, args ...goja.Value) (*
 		switch k {
 		case "headers":
 			headersV := params.Get(k)
-			if goja.IsUndefined(headersV) || goja.IsNull(headersV) {
+			if sobek.IsUndefined(headersV) || sobek.IsNull(headersV) {
 				continue
 			}
 			headersObj := headersV.ToObject(rt)
@@ -500,7 +500,7 @@ func parseConnectArgs(state *lib.State, rt *goja.Runtime, args ...goja.Value) (*
 			}
 		case "jar":
 			jarV := params.Get(k)
-			if goja.IsUndefined(jarV) || goja.IsNull(jarV) {
+			if sobek.IsUndefined(jarV) || sobek.IsNull(jarV) {
 				continue
 			}
 			if v, ok := jarV.Export().(*httpModule.CookieJar); ok {
