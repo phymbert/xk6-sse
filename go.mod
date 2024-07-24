@@ -3,9 +3,9 @@ module github.com/phymbert/xk6-sse
 go 1.20
 
 require (
-	github.com/dop251/goja v0.0.0-20240220182346-e401ed450204
+	github.com/grafana/sobek v0.0.0-20240607083612-4f0cd64f4e78
 	github.com/stretchr/testify v1.9.0
-	go.k6.io/k6 v0.51.0
+	go.k6.io/k6 v0.51.1-0.20240610082146-1f01a9bc2365
 	gopkg.in/guregu/null.v3 v3.5.0
 )
 
@@ -18,6 +18,8 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
+	github.com/dop251/goja v0.0.0-20240516125602-ccbae20bcec2 // indirect
+	github.com/evanw/esbuild v0.21.2 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -51,10 +53,10 @@ require (
 	go.opentelemetry.io/otel/sdk v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.1.0 // indirect
-	golang.org/x/crypto v0.21.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/sys v0.18.0 // indirect
-	golang.org/x/text v0.14.0 // indirect
+	golang.org/x/crypto v0.24.0 // indirect
+	golang.org/x/net v0.26.0 // indirect
+	golang.org/x/sys v0.21.0 // indirect
+	golang.org/x/text v0.16.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240227224415-6ceb2ff114de // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240227224415-6ceb2ff114de // indirect
