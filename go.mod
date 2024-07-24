@@ -3,9 +3,9 @@ module github.com/phymbert/xk6-sse
 go 1.20
 
 require (
-	github.com/grafana/sobek v0.0.0-20240607083612-4f0cd64f4e78
+	github.com/grafana/sobek v0.0.0-20240613124309-cb36746e8fee
 	github.com/stretchr/testify v1.9.0
-	go.k6.io/k6 v0.51.1-0.20240610082146-1f01a9bc2365
+	go.k6.io/k6 v0.52.0
 	gopkg.in/guregu/null.v3 v3.5.0
 )
 
@@ -18,7 +18,7 @@ require (
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.10.0 // indirect
-	github.com/dop251/goja v0.0.0-20240516125602-ccbae20bcec2 // indirect
+	github.com/dop251/goja v0.0.0-20240610225006-393f6d42497b // indirect
 	github.com/evanw/esbuild v0.21.2 // indirect
 	github.com/fatih/color v1.16.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
