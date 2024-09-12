@@ -63,6 +63,7 @@ type HTTPResponse struct {
 	URL     string            `json:"url"`
 	Status  int               `json:"status"`
 	Headers map[string]string `json:"headers"`
+	Body    string            `json:"body"`
 	Error   string            `json:"error"`
 }
 
@@ -113,6 +114,11 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 			return nil, err
 		}
 		return client.wrapHTTPResponse(err.Error())
+	}
+
+	if !strings.Contains(client.resp.Header.Get("Content-Type"), "text/event-stream") {
+		// Non-SSE response, wrap it and return immediately
+		return client.wrapHTTPResponse("")
 	}
 
 	// Run the user-provided set up function
@@ -242,17 +248,9 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 			args.tagsAndMeta.SetSystemTagOrMeta(
 				metrics.TagStatus, strconv.Itoa(resp.StatusCode))
 		}
-
-        // Handle HTTP error responses and capture error body
-        if resp.StatusCode >= 400 {
-            errorBody, err := io.ReadAll(resp.Body)
-            if err == nil {
-                err = errors.New(string(errorBody))
-            }
-        }
 	}
 
-    connEndHook := sseClient.pushSSEMetrics(connStart, connEnd)
+	connEndHook := sseClient.pushSSEMetrics(connStart, connEnd)
 
 	return &sseClient, connEndHook, err
 }
@@ -438,7 +436,12 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 // Wrap the raw HTTPResponse we received to a sse.HTTPResponse we can pass to the user
 func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
 	if errMessage != "" {
-		return &HTTPResponse{Error: errMessage}, nil
+		// Read the response body if available.
+		bodyBytes, err := io.ReadAll(c.resp.Body)
+		if err != nil {
+			bodyBytes = []byte("Error reading body: " + err.Error())
+		}
+		return &HTTPResponse{Error: errMessage, Body: string(bodyBytes)}, nil
 	}
 	sseResponse := HTTPResponse{
 		URL:    c.url,
@@ -448,6 +451,15 @@ func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
 	sseResponse.Headers = make(map[string]string, len(c.resp.Header))
 	for k, vs := range c.resp.Header {
 		sseResponse.Headers[k] = strings.Join(vs, ", ")
+	}
+
+	// Only read the body if the content type is not `text/event-stream`.
+	if !strings.Contains(c.resp.Header.Get("Content-Type"), "text/event-stream") {
+		bodyBytes, err := io.ReadAll(c.resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		sseResponse.Body = string(bodyBytes)
 	}
 
 	return &sseResponse, nil
