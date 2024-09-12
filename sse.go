@@ -242,9 +242,17 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 			args.tagsAndMeta.SetSystemTagOrMeta(
 				metrics.TagStatus, strconv.Itoa(resp.StatusCode))
 		}
+
+        // Handle HTTP error responses and capture error body
+        if resp.StatusCode >= 400 {
+            errorBody, err := io.ReadAll(resp.Body)
+            if err == nil {
+                err = errors.New(string(errorBody))
+            }
+        }
 	}
 
-	connEndHook := sseClient.pushSSEMetrics(connStart, connEnd)
+    connEndHook := sseClient.pushSSEMetrics(connStart, connEnd)
 
 	return &sseClient, connEndHook, err
 }
