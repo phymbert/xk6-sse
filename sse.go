@@ -190,6 +190,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			DialContext:     state.Dialer.DialContext,
 			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: tlsConfig,
 		},
