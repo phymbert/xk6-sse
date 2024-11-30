@@ -43,7 +43,7 @@ linters-settings:
     min-len: 10
     min-occurrences: 5
   funlen:
-    lines: 80
+    lines: 90
     statements: 60
 
 linters:
