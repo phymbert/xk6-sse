@@ -112,7 +112,7 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 		if state.Options.Throw.Bool {
 			return nil, err
 		}
-		return client.wrapHTTPResponse(err.Error())
+		return client.wrapHTTPResponse(err.Error()), nil
 	}
 
 	// Run the user-provided set up function
@@ -161,13 +161,13 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 
 		case <-client.done:
 			// This is the final exit point normally triggered by closeResponseBody
-			return client.wrapHTTPResponse("")
+			return client.wrapHTTPResponse(""), nil
 		}
 	}
 }
 
-func (mi *sse) open(ctx context.Context, state *lib.State,
-	rt *sobek.Runtime, url string, args *sseOpenArgs,
+func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
+	url string, args *sseOpenArgs,
 ) (*Client, func(), error) {
 	sseClient := Client{
 		ctx:            ctx,
@@ -429,9 +429,9 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 }
 
 // Wrap the raw HTTPResponse we received to a sse.HTTPResponse we can pass to the user
-func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
+func (c *Client) wrapHTTPResponse(errMessage string) *HTTPResponse {
 	if errMessage != "" {
-		return &HTTPResponse{Error: errMessage}, nil
+		return &HTTPResponse{Error: errMessage}
 	}
 	sseResponse := HTTPResponse{
 		URL:    c.url,
@@ -443,7 +443,7 @@ func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
 		sseResponse.Headers[k] = strings.Join(vs, ", ")
 	}
 
-	return &sseResponse, nil
+	return &sseResponse
 }
 
 func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) (*sseOpenArgs, error) {
