@@ -63,6 +63,10 @@ func assertMetricEmittedCount(t *testing.T, metricName string, sampleContainers 
 	assert.Equal(t, count, actualCount, "url %s emitted %s %d times, expected was %d times", url, metricName, actualCount, count)
 }
 
+func assertSseCount(t *testing.T, sampleContainers []metrics.SampleContainer, url string, count int) {
+	assertMetricEmittedCount(t, MetricEventName, sampleContainers, url, count)
+}
+
 type testState struct {
 	*modulestest.Runtime
 	tb      *httpmultibin.HTTPMultiBin
@@ -171,7 +175,7 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
 	})
 
 	t.Run("post method", func(t *testing.T) {
@@ -204,7 +208,83 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+	})
+}
+
+func TestClose(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nominal get close", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var open = false;
+		var error = false;
+		var events = [];
+		var res = sse.open("HTTPBIN_IP_URL/sse", function(client){
+			client.on("error", function(err) {
+				error = true
+			});
+			client.on("open", function(err) {
+				open = true
+			});
+			client.on("error", function(err) {
+				error = true
+			});
+			client.on("event", function(event) {
+				client.close()
+				events.push(event);
+			});
+		});
+		if (!open) {
+			throw new Error("opened is not called");
+		}
+		if (error) {
+			throw new Error("error raised");
+		}
+		if (events.length != 1) {
+			throw new Error("unexpected number of events");
+		}
+`))
+		require.NoError(t, err)
+		samplesBuf := metrics.GetBufferedSamples(test.samples)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+	})
+
+	t.Run("post method", func(t *testing.T) {
+		t.Parallel()
+
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+		_, err := test.VU.Runtime().RunString(sr(`
+		var events = [];
+		var res = sse.open("HTTPBIN_IP_URL/sse", {method: 'POST', body: '{"ping": true}', headers: {"content-type": "application/json", "Authorization": "Bearer XXXX"}}, function(client){
+			client.on("event", function(event) {
+				events.push(event);
+			});
+		});
+		for (let i = 0; i < events.length; i++) {
+			let event = events[i];
+			switch(i) {
+				case 0:
+					if (event.id !== "pong") {
+						throw new Error("unexpected event id: " + event.id);
+					}
+					if (event.data !== '{"ping": "pong"}') {
+						throw new Error("unexpected event data: " + event.data);
+					}
+					break;
+				default:
+					throw new Error("unexpected event");
+			}
+		}
+		`))
+		require.NoError(t, err)
+		samplesBuf := metrics.GetBufferedSamples(test.samples)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
 	})
 }
 
