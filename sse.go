@@ -56,6 +56,7 @@ type Client struct {
 	samplesOutput  chan<- metrics.SampleContainer
 	builtinMetrics *metrics.BuiltinMetrics
 	sseMetrics     *sseMetrics
+	cancelRequest  context.CancelFunc
 }
 
 // HTTPResponse is the http response returned by sse.open.
@@ -169,6 +170,8 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 	url string, args *sseOpenArgs,
 ) (*Client, func(), error) {
+	reqCtx, cancel := context.WithCancel(ctx)
+
 	sseClient := Client{
 		ctx:            ctx,
 		rt:             rt,
@@ -179,6 +182,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 		tagsAndMeta:    args.tagsAndMeta,
 		builtinMetrics: state.BuiltinMetrics,
 		sseMetrics:     mi.metrics,
+		cancelRequest:  cancel,
 	}
 
 	// Overriding the NextProtos to avoid talking http2
@@ -206,7 +210,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 		httpMethod = args.method
 	}
 
-	req, err := http.NewRequestWithContext(ctx, httpMethod, url, strings.NewReader(args.body))
+	req, err := http.NewRequestWithContext(reqCtx, httpMethod, url, strings.NewReader(args.body))
 	if err != nil {
 		return &sseClient, nil, err
 	}
@@ -259,7 +263,9 @@ func (c *Client) On(event string, handler sobek.Value) {
 
 // Close the event loop
 func (c *Client) Close() error {
-	return c.closeResponseBody()
+	err := c.closeResponseBody()
+	c.cancelRequest()
+	return err
 }
 
 func (c *Client) handleEvent(event string, args ...sobek.Value) {
@@ -283,8 +289,6 @@ func (c *Client) closeResponseBody() error {
 			c.handleEvent("error", c.rt.ToValue(err))
 		}
 		close(c.done)
-		// Ensure response body is read in order for http tcp connection to be reused
-		_, _ = io.Copy(io.Discard, c.resp.Body)
 	})
 
 	return err
