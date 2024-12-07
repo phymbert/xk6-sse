@@ -278,9 +278,13 @@ func (c *Client) closeResponseBody() error {
 	var err error
 
 	c.shutdownOnce.Do(func() {
+		// Ensure response body is read in order for http tcp connection to be reused
+		_, err = io.Copy(io.Discard, c.resp.Body)
+		if err != nil {
+			c.handleEvent("error", c.rt.ToValue(err))
+		}
 		err = c.resp.Body.Close()
 		if err != nil {
-			// Call the user-defined error handler
 			c.handleEvent("error", c.rt.ToValue(err))
 		}
 		close(c.done)
