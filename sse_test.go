@@ -63,6 +63,10 @@ func assertMetricEmittedCount(t *testing.T, metricName string, sampleContainers 
 	assert.Equal(t, count, actualCount, "url %s emitted %s %d times, expected was %d times", url, metricName, actualCount, count)
 }
 
+func assertSseCount(t *testing.T, sampleContainers []metrics.SampleContainer, url string, count int) {
+	assertMetricEmittedCount(t, MetricEventName, sampleContainers, url, count)
+}
+
 type testState struct {
 	*modulestest.Runtime
 	tb      *httpmultibin.HTTPMultiBin
@@ -171,7 +175,7 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
 	})
 
 	t.Run("post method", func(t *testing.T) {
@@ -204,7 +208,7 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
 	})
 }
 
@@ -247,7 +251,7 @@ func TestClose(t *testing.T) {
 `))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
 	})
 
 	t.Run("post method", func(t *testing.T) {
@@ -280,7 +284,7 @@ func TestClose(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
 	})
 }
 
