@@ -197,6 +197,8 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 			DialContext:     state.Dialer.DialContext,
 			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: tlsConfig,
+			// FIXME phymbert: it would be more interesting to allow reusing the transport across iterations
+			DisableKeepAlives: state.Options.NoConnectionReuse.ValueOrZero() || state.Options.NoVUConnectionReuse.ValueOrZero(),
 		},
 	}
 
