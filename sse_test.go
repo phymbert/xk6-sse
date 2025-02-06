@@ -3,20 +3,61 @@ package sse
 import (
 	"crypto/tls"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/url"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	httpModule "go.k6.io/k6/js/modules/k6/http"
 	"go.k6.io/k6/js/modulestest"
 	"go.k6.io/k6/lib"
-	"go.k6.io/k6/lib/testutils/httpmultibin"
+	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/lib/types"
 	"go.k6.io/k6/metrics"
 	"gopkg.in/guregu/null.v3"
 )
+
+type httpbin struct {
+	Mux             *http.ServeMux
+	Dialer          lib.DialContexter
+	TLSClientConfig *tls.Config
+	Replacer        *strings.Replacer
+}
+
+func newHTTPBin(tb testing.TB) *httpbin {
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	replacer := strings.NewReplacer("HTTPBIN_IP_URL", srv.URL)
+	dialer := netext.NewDialer(net.Dialer{
+		Timeout:   2 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}, netext.NewResolver(net.LookupIP, 0, types.DNSfirst, types.DNSpreferIPv4))
+
+	var err error
+	httpURL, err := url.Parse(srv.URL)
+	require.NoError(tb, err)
+	httpIP := net.ParseIP(httpURL.Hostname())
+	httpDomainValue, err := types.NewHost(httpIP, "")
+	require.NoError(tb, err)
+	dialer.Hosts, err = types.NewHosts(map[string]types.Host{
+		"httpbin.local": *httpDomainValue,
+	})
+	require.NoError(tb, err)
+
+	return &httpbin{
+		Mux:             mux,
+		Replacer:        replacer,
+		TLSClientConfig: srv.TLS,
+		Dialer:          dialer,
+	}
+}
 
 func assertSSEMetricsEmitted(t *testing.T, sampleContainers []metrics.SampleContainer, subprotocol, url string, status int, group string) { //nolint:unparam
 	seenEvents := false
@@ -69,21 +110,21 @@ func assertSseCount(t *testing.T, sampleContainers []metrics.SampleContainer, ur
 
 type testState struct {
 	*modulestest.Runtime
-	tb      *httpmultibin.HTTPMultiBin
+	tb      *httpbin
 	samples chan metrics.SampleContainer
 }
 
 func newTestState(tb testing.TB) testState {
-	httpMultiBin := httpmultibin.NewHTTPMultiBin(tb)
-	httpMultiBin.Mux.Handle("/sse", sseHandler(tb, false))
-	httpMultiBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
+	httpBin := newHTTPBin(tb)
+	httpBin.Mux.Handle("/sse", sseHandler(tb, false))
+	httpBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
 
 	testRuntime := modulestest.NewRuntime(tb)
 	registry := metrics.NewRegistry()
 	samples := make(chan metrics.SampleContainer, 1000)
 
 	state := &lib.State{
-		Dialer: httpMultiBin.Dialer,
+		Dialer: httpBin.Dialer,
 		Options: lib.Options{
 			SystemTags: metrics.NewSystemTagSet(
 				metrics.TagURL,
@@ -95,7 +136,7 @@ func newTestState(tb testing.TB) testState {
 			Throw:     null.BoolFrom(true),
 		},
 		Samples:        samples,
-		TLSConfig:      httpMultiBin.TLSClientConfig,
+		TLSConfig:      httpBin.TLSClientConfig,
 		BuiltinMetrics: metrics.RegisterBuiltinMetrics(registry),
 		Tags:           lib.NewVUStateTags(registry.RootTagSet()),
 	}
@@ -106,7 +147,7 @@ func newTestState(tb testing.TB) testState {
 
 	return testState{
 		Runtime: testRuntime,
-		tb:      httpMultiBin,
+		tb:      httpBin,
 		samples: samples,
 	}
 }
