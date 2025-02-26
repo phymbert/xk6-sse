@@ -56,7 +56,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exportloopref
     - forbidigo
     - forcetypeassert
     - funlen
@@ -96,9 +95,7 @@ linters:
     - sqlclosecheck
     - staticcheck
     - stylecheck
-    - tenv
     - tparallel
-    - typecheck
     - unconvert
     - unparam
     - unused

@@ -2,7 +2,7 @@ module github.com/phymbert/xk6-sse
 
 go 1.22
 
-toolchain go1.23.3
+toolchain go1.22.10
 
 require (
 	github.com/grafana/sobek v0.0.0-20241024150027-d91f02b05e9b
