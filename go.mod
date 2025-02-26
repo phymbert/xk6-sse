@@ -1,6 +1,7 @@
 module github.com/phymbert/xk6-sse
 
-go 1.21
+go 1.22
+
 toolchain go1.23.3
 
 require (
