@@ -16,6 +16,6 @@ jobs:
           go-version: '1.22'
       - uses: actions/checkout@v4
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v7
         with:
           args: --config=.golangci.yml
