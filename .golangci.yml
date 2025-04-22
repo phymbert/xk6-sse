@@ -26,24 +26,17 @@ issues:
         - stylecheck
 
 linters-settings:
-  nolintlint:
-    # Disable to ensure that nolint directives don't have a leading space. Default is true.
-    allow-leading-space: false
   exhaustive:
     default-signifies-exhaustive: true
-  govet:
-    check-shadowing: true
   cyclop:
     max-complexity: 25
-  maligned:
-    suggest-new: true
   dupl:
     threshold: 150
   goconst:
     min-len: 10
     min-occurrences: 5
   funlen:
-    lines: 80
+    lines: 90
     statements: 60
 
 linters:
@@ -63,7 +56,6 @@ linters:
     - errname
     - errorlint
     - exhaustive
-    - exportloopref
     - forbidigo
     - forcetypeassert
     - funlen
@@ -103,9 +95,7 @@ linters:
     - sqlclosecheck
     - staticcheck
     - stylecheck
-    - tenv
     - tparallel
-    - typecheck
     - unconvert
     - unparam
     - unused

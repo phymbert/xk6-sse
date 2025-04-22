@@ -3,20 +3,61 @@ package sse
 import (
 	"crypto/tls"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/url"
 	"strconv"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	httpModule "go.k6.io/k6/js/modules/k6/http"
 	"go.k6.io/k6/js/modulestest"
 	"go.k6.io/k6/lib"
-	"go.k6.io/k6/lib/testutils/httpmultibin"
+	"go.k6.io/k6/lib/netext"
+	"go.k6.io/k6/lib/types"
 	"go.k6.io/k6/metrics"
 	"gopkg.in/guregu/null.v3"
 )
+
+type httpbin struct {
+	Mux             *http.ServeMux
+	Dialer          lib.DialContexter
+	TLSClientConfig *tls.Config
+	Replacer        *strings.Replacer
+}
+
+func newHTTPBin(tb testing.TB) *httpbin {
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	replacer := strings.NewReplacer("HTTPBIN_IP_URL", srv.URL)
+	dialer := netext.NewDialer(net.Dialer{
+		Timeout:   2 * time.Second,
+		KeepAlive: 10 * time.Second,
+	}, netext.NewResolver(net.LookupIP, 0, types.DNSfirst, types.DNSpreferIPv4))
+
+	var err error
+	httpURL, err := url.Parse(srv.URL)
+	require.NoError(tb, err)
+	httpIP := net.ParseIP(httpURL.Hostname())
+	httpDomainValue, err := types.NewHost(httpIP, "")
+	require.NoError(tb, err)
+	dialer.Hosts, err = types.NewHosts(map[string]types.Host{
+		"httpbin.local": *httpDomainValue,
+	})
+	require.NoError(tb, err)
+
+	return &httpbin{
+		Mux:             mux,
+		Replacer:        replacer,
+		TLSClientConfig: srv.TLS,
+		Dialer:          dialer,
+	}
+}
 
 func assertSSEMetricsEmitted(t *testing.T, sampleContainers []metrics.SampleContainer, subprotocol, url string, status int, group string) { //nolint:unparam
 	seenEvents := false
@@ -63,23 +104,27 @@ func assertMetricEmittedCount(t *testing.T, metricName string, sampleContainers 
 	assert.Equal(t, count, actualCount, "url %s emitted %s %d times, expected was %d times", url, metricName, actualCount, count)
 }
 
+func assertSseCount(t *testing.T, sampleContainers []metrics.SampleContainer, url string, count int) {
+	assertMetricEmittedCount(t, MetricEventName, sampleContainers, url, count)
+}
+
 type testState struct {
 	*modulestest.Runtime
-	tb      *httpmultibin.HTTPMultiBin
+	tb      *httpbin
 	samples chan metrics.SampleContainer
 }
 
 func newTestState(tb testing.TB) testState {
-	httpMultiBin := httpmultibin.NewHTTPMultiBin(tb)
-	httpMultiBin.Mux.Handle("/sse", sseHandler(tb, false))
-	httpMultiBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
+	httpBin := newHTTPBin(tb)
+	httpBin.Mux.Handle("/sse", sseHandler(tb, false))
+	httpBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
 
 	testRuntime := modulestest.NewRuntime(tb)
 	registry := metrics.NewRegistry()
 	samples := make(chan metrics.SampleContainer, 1000)
 
 	state := &lib.State{
-		Dialer: httpMultiBin.Dialer,
+		Dialer: httpBin.Dialer,
 		Options: lib.Options{
 			SystemTags: metrics.NewSystemTagSet(
 				metrics.TagURL,
@@ -91,7 +136,7 @@ func newTestState(tb testing.TB) testState {
 			Throw:     null.BoolFrom(true),
 		},
 		Samples:        samples,
-		TLSConfig:      httpMultiBin.TLSClientConfig,
+		TLSConfig:      httpBin.TLSClientConfig,
 		BuiltinMetrics: metrics.RegisterBuiltinMetrics(registry),
 		Tags:           lib.NewVUStateTags(registry.RootTagSet()),
 	}
@@ -102,7 +147,7 @@ func newTestState(tb testing.TB) testState {
 
 	return testState{
 		Runtime: testRuntime,
-		tb:      httpMultiBin,
+		tb:      httpBin,
 		samples: samples,
 	}
 }
@@ -171,7 +216,7 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 2)
 	})
 
 	t.Run("post method", func(t *testing.T) {
@@ -204,7 +249,83 @@ func TestOpen(t *testing.T) {
 		`))
 		require.NoError(t, err)
 		samplesBuf := metrics.GetBufferedSamples(test.samples)
-		assertMetricEmittedCount(t, MetricEventName, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+	})
+}
+
+func TestClose(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nominal get close", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var open = false;
+		var error = false;
+		var events = [];
+		var res = sse.open("HTTPBIN_IP_URL/sse", function(client){
+			client.on("error", function(err) {
+				error = true
+			});
+			client.on("open", function(err) {
+				open = true
+			});
+			client.on("error", function(err) {
+				error = true
+			});
+			client.on("event", function(event) {
+				client.close()
+				events.push(event);
+			});
+		});
+		if (!open) {
+			throw new Error("opened is not called");
+		}
+		if (error) {
+			throw new Error("error raised");
+		}
+		if (events.length != 1) {
+			throw new Error("unexpected number of events");
+		}
+`))
+		require.NoError(t, err)
+		samplesBuf := metrics.GetBufferedSamples(test.samples)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
+	})
+
+	t.Run("post method", func(t *testing.T) {
+		t.Parallel()
+
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+		_, err := test.VU.Runtime().RunString(sr(`
+		var events = [];
+		var res = sse.open("HTTPBIN_IP_URL/sse", {method: 'POST', body: '{"ping": true}', headers: {"content-type": "application/json", "Authorization": "Bearer XXXX"}}, function(client){
+			client.on("event", function(event) {
+				events.push(event);
+			});
+		});
+		for (let i = 0; i < events.length; i++) {
+			let event = events[i];
+			switch(i) {
+				case 0:
+					if (event.id !== "pong") {
+						throw new Error("unexpected event id: " + event.id);
+					}
+					if (event.data !== '{"ping": "pong"}') {
+						throw new Error("unexpected event data: " + event.data);
+					}
+					break;
+				default:
+					throw new Error("unexpected event");
+			}
+		}
+		`))
+		require.NoError(t, err)
+		samplesBuf := metrics.GetBufferedSamples(test.samples)
+		assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse"), 1)
 	})
 }
 

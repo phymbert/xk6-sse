@@ -56,6 +56,7 @@ type Client struct {
 	samplesOutput  chan<- metrics.SampleContainer
 	builtinMetrics *metrics.BuiltinMetrics
 	sseMetrics     *sseMetrics
+	cancelRequest  context.CancelFunc
 }
 
 // HTTPResponse is the http response returned by sse.open.
@@ -113,7 +114,7 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 		if state.Options.Throw.Bool {
 			return nil, err
 		}
-		return client.wrapHTTPResponse(err.Error())
+		return client.wrapHTTPResponse(err.Error()), nil
 	}
 
 	if !strings.Contains(client.resp.Header.Get("Content-Type"), "text/event-stream") {
@@ -167,14 +168,16 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 
 		case <-client.done:
 			// This is the final exit point normally triggered by closeResponseBody
-			return client.wrapHTTPResponse("")
+			return client.wrapHTTPResponse(""), nil
 		}
 	}
 }
 
-func (mi *sse) open(ctx context.Context, state *lib.State,
-	rt *sobek.Runtime, url string, args *sseOpenArgs,
+func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
+	url string, args *sseOpenArgs,
 ) (*Client, func(), error) {
+	reqCtx, cancel := context.WithCancel(ctx)
+
 	sseClient := Client{
 		ctx:            ctx,
 		rt:             rt,
@@ -185,6 +188,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 		tagsAndMeta:    args.tagsAndMeta,
 		builtinMetrics: state.BuiltinMetrics,
 		sseMetrics:     mi.metrics,
+		cancelRequest:  cancel,
 	}
 
 	// Overriding the NextProtos to avoid talking http2
@@ -196,8 +200,11 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 
 	httpClient := &http.Client{
 		Transport: &http.Transport{
+			DialContext:     state.Dialer.DialContext,
 			Proxy:           http.ProxyFromEnvironment,
 			TLSClientConfig: tlsConfig,
+			// FIXME phymbert: it would be more interesting to allow reusing the transport across iterations
+			DisableKeepAlives: state.Options.NoConnectionReuse.ValueOrZero() || state.Options.NoVUConnectionReuse.ValueOrZero(),
 		},
 	}
 
@@ -211,7 +218,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State,
 		httpMethod = args.method
 	}
 
-	req, err := http.NewRequestWithContext(ctx, httpMethod, url, strings.NewReader(args.body))
+	req, err := http.NewRequestWithContext(reqCtx, httpMethod, url, strings.NewReader(args.body))
 	if err != nil {
 		return &sseClient, nil, err
 	}
@@ -264,7 +271,9 @@ func (c *Client) On(event string, handler sobek.Value) {
 
 // Close the event loop
 func (c *Client) Close() error {
-	return c.closeResponseBody()
+	err := c.closeResponseBody()
+	c.cancelRequest()
+	return err
 }
 
 func (c *Client) handleEvent(event string, args ...sobek.Value) {
@@ -285,7 +294,6 @@ func (c *Client) closeResponseBody() error {
 	c.shutdownOnce.Do(func() {
 		err = c.resp.Body.Close()
 		if err != nil {
-			// Call the user-defined error handler
 			c.handleEvent("error", c.rt.ToValue(err))
 		}
 		close(c.done)
@@ -434,7 +442,7 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 }
 
 // Wrap the raw HTTPResponse we received to a sse.HTTPResponse we can pass to the user
-func (c *Client) wrapHTTPResponse(errMessage string) (*HTTPResponse, error) {
+func (c *Client) wrapHTTPResponse(errMessage string) *HTTPResponse {
 	if errMessage != "" {
 		// Read the response body if available.
 		bodyBytes, err := io.ReadAll(c.resp.Body)
