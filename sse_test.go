@@ -540,7 +540,7 @@ func TestLineEnding(t *testing.T) {
 
 // sseLineEndingsHandler sends events with different line endings to test the parser
 func sseLineEndingsHandler(t testing.TB) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// 1. Event with CRLF line endings
 		_, err := w.Write([]byte("data: CRLF line ending\n\r\n"))
 		require.NoError(t, err)
