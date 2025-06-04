@@ -412,7 +412,7 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 			// Retry, do nothing for now
 
 		// end of event
-		case bytes.Equal(line, []byte("\n")):
+		case isLineEnd(line):
 			// Trailing newlines are removed.
 			ev.Data = strings.TrimRightFunc(buf.String(), func(r rune) bool {
 				return r == '\r' || r == '\n'
@@ -433,6 +433,10 @@ func (c *Client) readEvents(readChan chan Event, errorChan chan error, closeChan
 			}
 		}
 	}
+}
+
+func isLineEnd(line []byte) bool {
+	return bytes.Equal(line, []byte("\n")) || bytes.Equal(line, []byte("\r\n"))
 }
 
 // Wrap the raw HTTPResponse we received to a sse.HTTPResponse we can pass to the user

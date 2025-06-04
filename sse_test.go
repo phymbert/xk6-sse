@@ -501,6 +501,56 @@ func TestTLSConfig(t *testing.T) {
 	})
 }
 
+func TestLineEnding(t *testing.T) {
+	t.Parallel()
+	test := newTestState(t)
+	sr := test.tb.Replacer.Replace
+
+	// Register the line endings handler
+	test.tb.Mux.Handle("/sse-line-endings", sseLineEndingsHandler(t))
+
+	_, err := test.VU.Runtime().RunString(sr(`
+	var events = [];
+	var res = sse.open("HTTPBIN_IP_URL/sse-line-endings", function(client){
+		client.on("event", function(event) {
+			events.push(event);
+		});
+	});
+	
+	// Wait a bit to ensure all events are received
+	if (events.length !== 2) {
+		throw new Error("Expected 2 events, got " + events.length);
+	}
+	
+	// Check CRLF-terminated event data
+	if (events[0].data !== "CRLF line ending") {
+		throw new Error("CRLF event data incorrect: '" + events[0].data + "'");
+	}
+	
+	// Check LF-terminated event data
+	if (events[1].data !== "LF line ending") {
+		throw new Error("LF event data incorrect: '" + events[1].data + "'");
+	}
+	`))
+
+	require.NoError(t, err)
+	samplesBuf := metrics.GetBufferedSamples(test.samples)
+	assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse-line-endings"), 2)
+}
+
+// sseLineEndingsHandler sends events with different line endings to test the parser
+func sseLineEndingsHandler(t testing.TB) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// 1. Event with CRLF line endings
+		_, err := w.Write([]byte("data: CRLF line ending\n\r\n"))
+		require.NoError(t, err)
+
+		// 2. Event with LF line endings (not preceded by CR)
+		_, err = w.Write([]byte("data: LF line ending\n\n"))
+		require.NoError(t, err)
+	})
+}
+
 // sseHandler handles sse requests and generates some events.
 // If generateErrors is true then it generates junk
 // without respecting the protocol.
