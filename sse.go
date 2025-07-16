@@ -82,6 +82,7 @@ type sseOpenArgs struct {
 	body        string
 	cookieJar   *cookiejar.Jar
 	tagsAndMeta *metrics.TagsAndMeta
+	timeout     time.Duration
 }
 
 // Exports returns the exports of the sse module.
@@ -193,6 +194,8 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 	}
 
 	httpClient := &http.Client{
+		// FUTURE: support falling back on global timeout re: https://github.com/grafana/k6/issues/3932
+		Timeout: args.timeout,
 		Transport: &http.Transport{
 			DialContext:     state.Dialer.DialContext,
 			Proxy:           http.ProxyFromEnvironment,
@@ -484,6 +487,7 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 		headers:     headers,
 		cookieJar:   state.CookieJar,
 		tagsAndMeta: &tagsAndMeta,
+		timeout:     0,
 	}
 
 	if sobek.IsUndefined(paramsV) || sobek.IsNull(paramsV) {
@@ -522,6 +526,16 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 			parsedArgs.method = strings.TrimSpace(params.Get(k).ToString().String())
 		case "body":
 			parsedArgs.body = strings.TrimSpace(params.Get(k).ToString().String())
+		case "timeout":
+			timeoutV := params.Get(k)
+			if sobek.IsUndefined(timeoutV) || sobek.IsNull(timeoutV) {
+				continue
+			}
+			timeout, err := time.ParseDuration(timeoutV.ToString().String())
+			if err != nil {
+				return nil, fmt.Errorf("invalid sse.open() timeout: %w", err)
+			}
+			parsedArgs.timeout = timeout
 		}
 	}
 

@@ -118,6 +118,7 @@ func newTestState(tb testing.TB) testState {
 	httpBin := newHTTPBin(tb)
 	httpBin.Mux.Handle("/sse", sseHandler(tb, false))
 	httpBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
+	httpBin.Mux.Handle("/sse-slow", sseSlowHandler(tb))
 
 	testRuntime := modulestest.NewRuntime(tb)
 	registry := metrics.NewRegistry()
@@ -538,6 +539,33 @@ func TestLineEnding(t *testing.T) {
 	assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse-line-endings"), 2)
 }
 
+func TestTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("request timeout", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+		test.VU.StateField.Options.Throw = null.BoolFrom(true)
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var error = false;
+		var errorMessage = "";
+		var res = sse.open("HTTPBIN_IP_URL/sse-slow", {timeout: "50ms"}, function(client){
+			client.on("error", function(err) {
+				error = true;
+				errorMessage = err.toString();
+			});
+		});
+		if (error) {
+			throw new Error("unexpected error event raised: " + errorMessage);
+		}
+		`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Client.Timeout exceeded")
+	})
+}
+
 // sseLineEndingsHandler sends events with different line endings to test the parser
 func sseLineEndingsHandler(t testing.TB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -548,6 +576,18 @@ func sseLineEndingsHandler(t testing.TB) http.Handler {
 		// 2. Event with LF line endings (not preceded by CR)
 		_, err = w.Write([]byte("data: LF line ending\n\n"))
 		require.NoError(t, err)
+	})
+}
+
+// sseSlowHandler simulates a slow SSE server for timeout testing
+func sseSlowHandler(t testing.TB) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		// hang to trigger timeout
+		time.Sleep(200 * time.Millisecond)
+
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.WriteHeader(http.StatusOK)
+
 	})
 }
 
