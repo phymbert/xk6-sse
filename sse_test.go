@@ -564,6 +564,18 @@ func TestTimeout(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Client.Timeout exceeded")
 	})
+
+	t.Run("invalid timeout", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var res = sse.open("HTTPBIN_IP_URL/sse", {timeout: "invalid"}, function(client){});
+		`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid sse.open() timeout")
+	})
 }
 
 // sseSlowHandler simulates a slow SSE server for timeout testing
@@ -572,12 +584,12 @@ func sseSlowHandler(t testing.TB) http.Handler {
 		_, err := w.Write([]byte("data: first response\n\n"))
 		require.NoError(t, err)
 
-		time.Sleep(100 * time.Millisecond)
-		t.Log("slow handler: sleeping for 10ms")
-
-		_, err = w.Write([]byte("data: delayed response\n\n"))
-		require.NoError(t, err)
-
+		for i := 0; i < 10; i++ {
+			time.Sleep(10 * time.Millisecond)
+			t.Log("slow handler: sleeping for 10ms")
+			_, err = w.Write([]byte("data: delayed response\n\n"))
+			require.NoError(t, err)
+		}
 	})
 }
 
