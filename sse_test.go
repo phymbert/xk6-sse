@@ -566,6 +566,21 @@ func TestTimeout(t *testing.T) {
 	})
 }
 
+// sseSlowHandler simulates a slow SSE server for timeout testing
+func sseSlowHandler(t testing.TB) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("data: first response\n\n"))
+		require.NoError(t, err)
+
+		time.Sleep(100 * time.Millisecond)
+		t.Log("slow handler: sleeping for 10ms")
+
+		_, err = w.Write([]byte("data: delayed response\n\n"))
+		require.NoError(t, err)
+
+	})
+}
+
 // sseLineEndingsHandler sends events with different line endings to test the parser
 func sseLineEndingsHandler(t testing.TB) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -576,18 +591,6 @@ func sseLineEndingsHandler(t testing.TB) http.Handler {
 		// 2. Event with LF line endings (not preceded by CR)
 		_, err = w.Write([]byte("data: LF line ending\n\n"))
 		require.NoError(t, err)
-	})
-}
-
-// sseSlowHandler simulates a slow SSE server for timeout testing
-func sseSlowHandler(t testing.TB) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		// hang to trigger timeout
-		time.Sleep(200 * time.Millisecond)
-
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.WriteHeader(http.StatusOK)
-
 	})
 }
 
