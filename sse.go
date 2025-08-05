@@ -494,7 +494,15 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 		return parsedArgs, nil
 	}
 
-	// Parse the optional second argument (params)
+	err := parseConnectOptionalArgs(paramsV, rt, parsedArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return parsedArgs, nil
+}
+
+func parseConnectOptionalArgs(paramsV sobek.Value, rt *sobek.Runtime, parsedArgs *sseOpenArgs) error {
 	params := paramsV.ToObject(rt)
 	for _, k := range params.Keys() {
 		switch k {
@@ -512,7 +520,7 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 			}
 		case "tags":
 			if err := common.ApplyCustomUserTags(rt, parsedArgs.tagsAndMeta, params.Get(k)); err != nil {
-				return nil, fmt.Errorf("invalid sse.open() metric tags: %w", err)
+				return fmt.Errorf("invalid sse.open() metric tags: %w", err)
 			}
 		case "jar":
 			jarV := params.Get(k)
@@ -533,13 +541,12 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 			}
 			timeout, err := time.ParseDuration(timeoutV.ToString().String())
 			if err != nil {
-				return nil, fmt.Errorf("invalid sse.open() timeout: %w", err)
+				return fmt.Errorf("invalid sse.open() timeout: %w", err)
 			}
 			parsedArgs.timeout = timeout
 		}
 	}
-
-	return parsedArgs, nil
+	return nil
 }
 
 func hasPrefix(s []byte, prefix string) bool {
