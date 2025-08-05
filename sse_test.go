@@ -586,7 +586,6 @@ func sseSlowHandler(t testing.TB) http.Handler {
 
 		for i := 0; i < 10; i++ {
 			time.Sleep(10 * time.Millisecond)
-			t.Log("slow handler: sleeping for 10ms")
 			_, err = w.Write([]byte("data: delayed response\n\n"))
 			require.NoError(t, err)
 		}
