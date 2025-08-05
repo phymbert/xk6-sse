@@ -57,6 +57,7 @@ type Client struct {
 	builtinMetrics *metrics.BuiltinMetrics
 	sseMetrics     *sseMetrics
 	cancelRequest  context.CancelFunc
+	httpClient     *http.Client
 }
 
 // HTTPResponse is the http response returned by sse.open.
@@ -193,7 +194,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 		tlsConfig.NextProtos = []string{"http/1.1"}
 	}
 
-	httpClient := &http.Client{
+	sseClient.httpClient = &http.Client{
 		// FUTURE: support falling back on global timeout re: https://github.com/grafana/k6/issues/3932
 		Timeout: args.timeout,
 		Transport: &http.Transport{
@@ -207,7 +208,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 
 	// httpClient.Jar must never be nil
 	if args.cookieJar != nil {
-		httpClient.Jar = args.cookieJar
+		sseClient.httpClient.Jar = args.cookieJar
 	}
 
 	httpMethod := http.MethodGet
@@ -243,7 +244,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 
 	connStart := time.Now()
 	//nolint:bodyclose // Body is deferred closed in closeResponseBody
-	resp, err := httpClient.Do(req)
+	resp, err := sseClient.httpClient.Do(req)
 	connEnd := time.Now()
 
 	if resp != nil {
@@ -270,6 +271,7 @@ func (c *Client) On(event string, handler sobek.Value) {
 func (c *Client) Close() error {
 	err := c.closeResponseBody()
 	c.cancelRequest()
+	c.httpClient.CloseIdleConnections()
 	return err
 }
 
