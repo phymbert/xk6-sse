@@ -5,7 +5,7 @@ See the [K6 SSE Extension design](docs/design/021-sse-api.md).
 
 ## k6 version
 
-This extension is tested with `k6` version `v1.0.0` last release is [v0.1.10](https://github.com/phymbert/xk6-sse/releases/tag/v0.1.10).
+This extension is tested with `k6` version `v1.1.0` last release is [v0.1.11](https://github.com/phymbert/xk6-sse/releases/tag/v0.1.11).
 
 ## Build
 
