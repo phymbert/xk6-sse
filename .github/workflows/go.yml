@@ -23,5 +23,5 @@ jobs:
     - name: Go tests
       run: go test -race ./...
 
-    - name: Test from source
+    - name: Integration test from source
       run: ./tests.sh

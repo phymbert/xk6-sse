@@ -23,3 +23,6 @@ go.work
 
 # K6 binary
 k6
+
+# dataset
+*.json
