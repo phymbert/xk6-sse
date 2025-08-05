@@ -57,6 +57,7 @@ type Client struct {
 	builtinMetrics *metrics.BuiltinMetrics
 	sseMetrics     *sseMetrics
 	cancelRequest  context.CancelFunc
+	httpClient     *http.Client
 }
 
 // HTTPResponse is the http response returned by sse.open.
@@ -82,6 +83,7 @@ type sseOpenArgs struct {
 	body        string
 	cookieJar   *cookiejar.Jar
 	tagsAndMeta *metrics.TagsAndMeta
+	timeout     time.Duration
 }
 
 // Exports returns the exports of the sse module.
@@ -192,7 +194,9 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 		tlsConfig.NextProtos = []string{"http/1.1"}
 	}
 
-	httpClient := &http.Client{
+	sseClient.httpClient = &http.Client{
+		// FUTURE: support falling back on global timeout re: https://github.com/grafana/k6/issues/3932
+		Timeout: args.timeout,
 		Transport: &http.Transport{
 			DialContext:     state.Dialer.DialContext,
 			Proxy:           http.ProxyFromEnvironment,
@@ -204,7 +208,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 
 	// httpClient.Jar must never be nil
 	if args.cookieJar != nil {
-		httpClient.Jar = args.cookieJar
+		sseClient.httpClient.Jar = args.cookieJar
 	}
 
 	httpMethod := http.MethodGet
@@ -240,7 +244,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 
 	connStart := time.Now()
 	//nolint:bodyclose // Body is deferred closed in closeResponseBody
-	resp, err := httpClient.Do(req)
+	resp, err := sseClient.httpClient.Do(req)
 	connEnd := time.Now()
 
 	if resp != nil {
@@ -267,6 +271,7 @@ func (c *Client) On(event string, handler sobek.Value) {
 func (c *Client) Close() error {
 	err := c.closeResponseBody()
 	c.cancelRequest()
+	c.httpClient.CloseIdleConnections()
 	return err
 }
 
@@ -484,13 +489,22 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 		headers:     headers,
 		cookieJar:   state.CookieJar,
 		tagsAndMeta: &tagsAndMeta,
+		timeout:     0,
 	}
 
 	if sobek.IsUndefined(paramsV) || sobek.IsNull(paramsV) {
 		return parsedArgs, nil
 	}
 
-	// Parse the optional second argument (params)
+	err := parseConnectOptionalArgs(paramsV, rt, parsedArgs)
+	if err != nil {
+		return nil, err
+	}
+
+	return parsedArgs, nil
+}
+
+func parseConnectOptionalArgs(paramsV sobek.Value, rt *sobek.Runtime, parsedArgs *sseOpenArgs) error {
 	params := paramsV.ToObject(rt)
 	for _, k := range params.Keys() {
 		switch k {
@@ -508,7 +522,7 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 			}
 		case "tags":
 			if err := common.ApplyCustomUserTags(rt, parsedArgs.tagsAndMeta, params.Get(k)); err != nil {
-				return nil, fmt.Errorf("invalid sse.open() metric tags: %w", err)
+				return fmt.Errorf("invalid sse.open() metric tags: %w", err)
 			}
 		case "jar":
 			jarV := params.Get(k)
@@ -522,10 +536,19 @@ func parseConnectArgs(state *lib.State, rt *sobek.Runtime, args ...sobek.Value) 
 			parsedArgs.method = strings.TrimSpace(params.Get(k).ToString().String())
 		case "body":
 			parsedArgs.body = strings.TrimSpace(params.Get(k).ToString().String())
+		case "timeout":
+			timeoutV := params.Get(k)
+			if sobek.IsUndefined(timeoutV) || sobek.IsNull(timeoutV) {
+				continue
+			}
+			timeout, err := time.ParseDuration(timeoutV.ToString().String())
+			if err != nil {
+				return fmt.Errorf("invalid sse.open() timeout: %w", err)
+			}
+			parsedArgs.timeout = timeout
 		}
 	}
-
-	return parsedArgs, nil
+	return nil
 }
 
 func hasPrefix(s []byte, prefix string) bool {

@@ -118,6 +118,7 @@ func newTestState(tb testing.TB) testState {
 	httpBin := newHTTPBin(tb)
 	httpBin.Mux.Handle("/sse", sseHandler(tb, false))
 	httpBin.Mux.Handle("/sse-invalid", sseHandler(tb, true))
+	httpBin.Mux.Handle("/sse-slow", sseSlowHandler(tb))
 
 	testRuntime := modulestest.NewRuntime(tb)
 	registry := metrics.NewRegistry()
@@ -536,6 +537,59 @@ func TestLineEnding(t *testing.T) {
 	require.NoError(t, err)
 	samplesBuf := metrics.GetBufferedSamples(test.samples)
 	assertSseCount(t, samplesBuf, sr("HTTPBIN_IP_URL/sse-line-endings"), 2)
+}
+
+func TestTimeout(t *testing.T) {
+	t.Parallel()
+
+	t.Run("request timeout", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+		test.VU.StateField.Options.Throw = null.BoolFrom(true)
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var error = false;
+		var errorMessage = "";
+		var res = sse.open("HTTPBIN_IP_URL/sse-slow", {timeout: "50ms"}, function(client){
+			client.on("error", function(err) {
+				error = true;
+				errorMessage = err.toString();
+			});
+		});
+		if (error) {
+			throw new Error("unexpected error event raised: " + errorMessage);
+		}
+		`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Client.Timeout exceeded")
+	})
+
+	t.Run("invalid timeout", func(t *testing.T) {
+		t.Parallel()
+		test := newTestState(t)
+		sr := test.tb.Replacer.Replace
+
+		_, err := test.VU.Runtime().RunString(sr(`
+		var res = sse.open("HTTPBIN_IP_URL/sse", {timeout: "invalid"}, function(client){});
+		`))
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid sse.open() timeout")
+	})
+}
+
+// sseSlowHandler simulates a slow SSE server for timeout testing
+func sseSlowHandler(t testing.TB) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, err := w.Write([]byte("data: first response\n\n"))
+		require.NoError(t, err)
+
+		for i := 0; i < 10; i++ {
+			time.Sleep(10 * time.Millisecond)
+			_, err = w.Write([]byte("data: delayed response\n\n"))
+			require.NoError(t, err)
+		}
+	})
 }
 
 // sseLineEndingsHandler sends events with different line endings to test the parser
