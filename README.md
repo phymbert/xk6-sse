@@ -1,32 +1,10 @@
 # xk6-sse
-A [k6](https://go.k6.io/k6) extension for [Server-Sent Events (SSE)](https://en.wikipedia.org/wiki/Server-sent_events) using the [xk6](https://github.com/grafana/xk6) system.
 
-See the [K6 SSE Extension design](docs/design/021-sse-api.md).
+A [k6](https://go.k6.io/k6) extension for [Server-Sent Events (SSE)](https://en.wikipedia.org/wiki/Server-sent_events).
 
-## k6 version
+This is a k6 **community** extension maintained by the open source community. Since [the k6 announcement](https://github.com/grafana/k6/issues/746#issuecomment-3249781235), no custom build with [xk6](https://github.com/grafana/xk6) is required—just `import sse from "k6/x/sse"` and k6 will resolve it automatically.
 
-This extension is tested with `k6` version `v1.2.2` last release is [v0.1.12](https://github.com/phymbert/xk6-sse/releases/tag/v0.1.12).
-
-## Build
-
-To build a `k6` binary with this plugin, first ensure you have the prerequisites:
-
-- [Go toolchain](https://go101.org/article/go-toolchain.html)
-- Git
-
-Then:
-
-1. Install [xk6](https://github.com/grafana/xk6):
-
-```shell
-go install go.k6.io/xk6/cmd/xk6@latest
-```
-
-2. Build the binary:
-
-```shell
-xk6 build --with github.com/phymbert/xk6-sse@latest
-```
+See the [community extensions list](https://grafana.com/docs/k6/latest/extensions/explore/#community-extensions) for other community-supported packages. The [K6 SSE Extension design](docs/design/021-sse-api.md) describes the API design.
 
 ## Examples
 
@@ -67,7 +45,7 @@ export default function () {
 
 ### OpenAI LLM IT Bench example
 
-You can benchmark LLM IT performances like TTFT(Time To First Token), PP(Prompt Processing), TG(Token Generation) and Latency of your LLM inference solution using xk6-sse.
+You can benchmark LLM IT performances like TTFT(Time To First Token), PP(Prompt Processing), TG(Token Generation) and Latency of your LLM inference solution using this extension.
 
 Benchmarking streaming chat completions is a way to compute TTFT from client point of view at scale.
 
@@ -250,7 +228,7 @@ export default function () {
 # Start an LLM inference server like vLLM or llama.cpp
 llama-server --hf-repo ggml-org/models --hf-file phi-2/ggml-model-q4_0.gguf -ngl 99
 
-# benchmark LLM IT performances using xk6-sse
+# benchmark LLM IT performances using the SSE extension
 ./k6 run --vus 5 --duration 30s  examples/llm.js 
 ```
 
