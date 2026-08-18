@@ -3,8 +3,8 @@ package sse
 import (
 	"errors"
 
-	"go.k6.io/k6/js/modules"
-	"go.k6.io/k6/metrics"
+	"go.k6.io/k6/v2/js/modules"
+	"go.k6.io/k6/v2/metrics"
 )
 
 // MetricEventName is the sse event metric of the module

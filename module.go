@@ -1,8 +1,8 @@
 package sse
 
 import (
-	"go.k6.io/k6/js/common"
-	"go.k6.io/k6/js/modules"
+	"go.k6.io/k6/v2/js/common"
+	"go.k6.io/k6/v2/js/modules"
 )
 
 type (

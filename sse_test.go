@@ -15,12 +15,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	httpModule "go.k6.io/k6/js/modules/k6/http"
-	"go.k6.io/k6/js/modulestest"
-	"go.k6.io/k6/lib"
-	"go.k6.io/k6/lib/netext"
-	"go.k6.io/k6/lib/types"
-	"go.k6.io/k6/metrics"
+	httpModule "go.k6.io/k6/v2/js/modules/k6/http"
+	"go.k6.io/k6/v2/js/modulestest"
+	"go.k6.io/k6/v2/lib"
+	"go.k6.io/k6/v2/lib/netext"
+	"go.k6.io/k6/v2/lib/types"
+	"go.k6.io/k6/v2/metrics"
 	"gopkg.in/guregu/null.v3"
 )
 
