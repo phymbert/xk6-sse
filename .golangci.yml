@@ -1,46 +1,8 @@
+version: "2"
 run:
   timeout: 10m
-
-issues:
-  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
-  max-issues-per-linter: 0
-  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
-  max-same-issues: 0
-
-  # We want to try and improve the comments in the k6 codebase, so individual
-  # non-golint items from the default exclusion list will gradually be added
-  # to the exclude-rules below
-  exclude-use-default: false
-
-  exclude-rules:
-    # Exclude duplicate code and function length and complexity checking in test
-    # files (due to common repeats and long functions in test code)
-    - path: _(test|gen)\.go
-      linters:
-        - cyclop
-        - dupl
-        - gocognit
-        - funlen
-        - lll
-        - nestif
-        - stylecheck
-
-linters-settings:
-  exhaustive:
-    default-signifies-exhaustive: true
-  cyclop:
-    max-complexity: 25
-  dupl:
-    threshold: 150
-  goconst:
-    min-len: 10
-    min-occurrences: 5
-  funlen:
-    lines: 90
-    statements: 60
-
 linters:
-  disable-all: true
+  default: none
   enable:
     - asasalint
     - asciicheck
@@ -64,13 +26,9 @@ linters:
     - gocognit
     - goconst
     - gocritic
-    - gofmt
-    - gofumpt
-    - goimports
     - gomoddirectives
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - importas
     - ineffassign
@@ -89,12 +47,11 @@ linters:
     - prealloc
     - predeclared
     - promlinter
-    - revive
     - reassign
+    - revive
     - rowserrcheck
     - sqlclosecheck
     - staticcheck
-    - stylecheck
     - tparallel
     - unconvert
     - unparam
@@ -102,4 +59,46 @@ linters:
     - usestdlibvars
     - wastedassign
     - whitespace
-  fast: false
+  settings:
+    cyclop:
+      max-complexity: 25
+    dupl:
+      threshold: 150
+    exhaustive:
+      default-signifies-exhaustive: true
+    funlen:
+      lines: 90
+      statements: 60
+    goconst:
+      min-len: 10
+      min-occurrences: 5
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - cyclop
+          - dupl
+          - funlen
+          - gocognit
+          - lll
+          - nestif
+          - staticcheck
+        path: _(test|gen)\.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+formatters:
+  enable:
+    - gofmt
+    - gofumpt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
