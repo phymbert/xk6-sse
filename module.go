@@ -33,6 +33,9 @@ func (*RootModule) NewModuleInstance(m modules.VU) modules.Instance {
 	if err := obj.Set("open", mi.Open); err != nil {
 		common.Throw(rt, err)
 	}
+	if err := obj.Set("openAsync", mi.OpenAsync); err != nil {
+		common.Throw(rt, err)
+	}
 
 	mi.obj = obj
 
