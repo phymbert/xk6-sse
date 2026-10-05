@@ -108,7 +108,9 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 	parsedArgs.tagsAndMeta.SetSystemTagOrMetaIfEnabled(state.Options.SystemTags, metrics.TagURL, url)
 
 	client, connEndHook, err := mi.open(ctx, state, rt, url, parsedArgs)
-	defer connEndHook()
+	if connEndHook != nil {
+		defer connEndHook()
+	}
 	if err != nil {
 		// Pass the error to the user script before exiting immediately
 		client.handleEvent("error", rt.ToValue(err))
@@ -218,6 +220,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 
 	req, err := http.NewRequestWithContext(reqCtx, httpMethod, url, strings.NewReader(args.body))
 	if err != nil {
+		cancel()
 		return &sseClient, nil, err
 	}
 
