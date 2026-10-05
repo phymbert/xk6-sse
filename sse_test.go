@@ -2,6 +2,7 @@ package sse
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -374,6 +375,52 @@ func TestErrors(t *testing.T) {
 		`))
 		require.NoError(t, err)
 	})
+}
+
+func TestRequestConstructionErrors(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		url     string
+		method  string
+		message string
+	}{
+		{"invalid escape", "http://example.com/%", "GET", "invalid URL escape"},
+		{"invalid host", "http://[::1", "GET", "missing ']' in host"},
+		{"control character", "http://example.com/\x7f", "GET", "invalid control character in URL"},
+		{"invalid method", "http://example.com/", "G ET", "invalid method"},
+	} {
+		for _, throw := range []bool{true, false} {
+			t.Run(fmt.Sprintf("%s/throw=%t", tc.name, throw), func(t *testing.T) {
+				t.Parallel()
+				test := newTestState(t)
+				test.VU.StateField.Options.Throw = null.BoolFrom(throw)
+
+				var err error
+				require.NotPanics(t, func() {
+					_, err = test.VU.Runtime().RunString(fmt.Sprintf(`
+					var setupCalled = false;
+					var res = sse.open(%q, {method: %q}, function() {
+						setupCalled = true;
+					});
+					`, tc.url, tc.method))
+				})
+
+				assert.False(t, test.VU.Runtime().Get("setupCalled").ToBoolean())
+				assert.Empty(t, metrics.GetBufferedSamples(test.samples))
+				if throw {
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), tc.message)
+				} else {
+					require.NoError(t, err)
+					res := test.VU.Runtime().Get("res").ToObject(test.VU.Runtime())
+					assert.Contains(t, res.Get("error").String(), tc.message)
+					assert.Zero(t, res.Get("status").ToInteger())
+				}
+			})
+		}
+	}
 }
 
 func TestOpenWrongStatusCode(t *testing.T) {
