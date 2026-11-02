@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")"
-xk6 build "${K6_VERSION:-v2.0.0}" --with github.com/phymbert/xk6-sse=.
+xk6 build --k6-version "${K6_VERSION:-v2.0.0}" --with github.com/phymbert/xk6-sse=.
 # Keep CI independent of public SSE services and fail on any incorrect result.
 python3 - <<'PYTHON'
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
