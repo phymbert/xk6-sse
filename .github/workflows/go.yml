@@ -17,11 +17,16 @@ jobs:
       with:
         go-version-file: go.mod
 
-    - name: Install xk6
-      run: go install go.k6.io/xk6/cmd/xk6@latest
-
     - name: Go tests
-      run: go test -race ./...
+      run: |
+        go test -race ./...
+        go build ./...
+        go vet ./...
+
+    - name: Install xk6
+      run: go install go.k6.io/xk6/cmd/xk6@v1.4.12
 
     - name: Integration test from source
+      env:
+        K6_VERSION: v2.0.0
       run: ./tests.sh
