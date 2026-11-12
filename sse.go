@@ -243,7 +243,7 @@ func (mi *sse) open(ctx context.Context, state *lib.State, rt *sobek.Runtime,
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
 	connStart := time.Now()
-	//nolint:bodyclose // Body is deferred closed in closeResponseBody
+	//nolint:gosec,bodyclose // k6 is a load testing tool; the user intentionally specifies the target URL
 	resp, err := sseClient.httpClient.Do(req)
 	connEnd := time.Now()
 
