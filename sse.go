@@ -119,7 +119,7 @@ func (mi *sse) Open(url string, args ...sobek.Value) (*HTTPResponse, error) {
 	}
 
 	// Run the user-provided set up function
-	if _, err := parsedArgs.setupFn(sobek.Undefined(), rt.ToValue(&client)); err != nil {
+	if _, err := parsedArgs.setupFn(sobek.Undefined(), rt.ToValue(client)); err != nil {
 		_ = client.closeResponseBody()
 		return nil, err
 	}
